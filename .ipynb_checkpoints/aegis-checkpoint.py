@@ -4,6 +4,7 @@ import scipy as sp
 import scipy.interpolate
 import scipy.integrate as integrate
 import astropy.units as units
+import astropy.cosmology as cosmo
 import healpy as hp
 import torch
 from astropy.io import fits
@@ -16,10 +17,15 @@ The class is used to generate simulations of photon maps.
 
 class aegis():
 
-    def __init__(self, abundance_luminosity_and_spectrum_list, source_class_list, parameter_range, energy_range, luminosity_range, max_radius, exposure, angular_cut = np.pi, lat_cut = 0, flux_cut = np.inf, verbose = False):
+    def __init__(self, abundance_luminosity_and_spectrum_list, source_class_list, parameter_range, energy_range, luminosity_range, max_radius, exposure, angular_cut = np.pi, lat_cut = 0, flux_cut = np.inf, cosmology = None, verbose = False):
         #super().__init__(parameter_range)
 
-        self.analysis_type = 'unbinned'
+        self.cosmology = cosmology
+        if self.cosmology:
+            if self.cosmology not in cosmo.realizations.available and type(self.cosmology) != cosmo.FlatLambdaCDM:
+                raise Exception('No valid cosmology given. Try one of these preloaded cosmologies: ' + ', '.join(cosmo.realizations.available) + '. Alternatively, give a custom cosmology of the astropy.cosmology.FlatLambdaCDM class.')
+            if self.cosmology in cosmo.realizations.available:
+                self.cosmology = getattr(cosmo, self.cosmology)
         
         self.GC_to_earth = 8.5 #kpc
         
@@ -288,7 +294,7 @@ class aegis():
                 
             else:
                 continue
-                
+            
             # Get the distance from Earth to each source
             x = self.GC_to_earth + radii*np.sin(angles[:,0])*np.cos(angles[:,1])
             y = radii*np.sin(angles[:,0])*np.sin(angles[:,1])
@@ -315,7 +321,7 @@ class aegis():
             prob_factors = ((self.GC_to_earth - single_p_radii)/single_p_distances)**2
             bad_source_indices = np.where(np.random.rand(num_single_p_sources) > prob_factors)
             single_p_radii = np.delete(single_p_radii, bad_source_indices)
-            single_p_angles = np.delete(single_p_angles, bad_source_indices, axis = 0)
+            single_p_earth_angles = np.delete(single_p_earth_angles, bad_source_indices, axis = 0)
             single_p_distances = np.delete(single_p_distances, bad_source_indices)
             num_single_p_sources = np.size(single_p_radii)
             
@@ -395,7 +401,10 @@ class aegis():
                 # Assign energies to all of those photons
                 #get spectra for each physical source
                 energy_vals = np.geomspace(self.Emin_gen, self.Emax_gen, grains)
-                spectra = self.abun_lum_spec[si][2](energy_vals, num_spectra = np.count_nonzero(source_photon_counts), params = input_params)
+                if self.source_class_list[si] == 'isotropic_faint_multi_spectra':
+                    spectra = self.abun_lum_spec[si][1](energy_vals, num_spectra = np.count_nonzero(source_photon_counts), params = input_params)
+                else:
+                    spectra = self.abun_lum_spec[si][2](energy_vals, num_spectra = np.count_nonzero(source_photon_counts), params = input_params)
                 #convert to spectra for each photon
                 spectra = np.repeat(spectra, source_photon_counts[np.nonzero(source_photon_counts)], axis = 0)
                 #normalize the spectra
@@ -417,7 +426,10 @@ class aegis():
                     continue
                 # Assign energies to all of those photons
                 energy_vals = np.geomspace(self.Emin_gen, self.Emax_gen, grains)
-                spectrum = self.abun_lum_spec[si][2](energy_vals, params = input_params)
+                if self.source_class_list[si] == 'isotropic_faint_single_spectrum':
+                    spectrum = self.abun_lum_spec[si][1](energy_vals, params = input_params)
+                else:
+                    spectrum = self.abun_lum_spec[si][2](energy_vals, params = input_params)
                 norm = np.sum(spectrum[:-1]*(energy_vals[1:] - energy_vals[:-1]))
                 Ei = self.draw_from_pdf(energy_vals[:-1], spectrum[:-1]*(energy_vals[1:] - energy_vals[:-1])/norm, np.sum(source_photon_counts))
                 Es = energy_vals[Ei]
@@ -506,13 +518,13 @@ class aegis():
         RL_integral = RL_PDF * dRdL
         
         # binomially draw low luminosity sources to save computation time
-        Dconserv = np.abs(self.GC_to_earth - np.tile(r[:-1],(grains-1,1)).T)
+        Dconserv = np.abs(self.GC_to_earth - np.tile(r[:-1],(grains-1,1)).T) #the closest possible distance from earth to a source generated at raduis r
         Dconserv = np.where(Dconserv == 0, 0.00000000001, Dconserv)
-        C = (np.tile(lums[:-1],(grains-1,1)))*self.exposure/(4*np.pi*Dconserv**2)
+        C = (np.tile(lums[:-1],(grains-1,1)))*self.exposure/(4*np.pi*Dconserv**2) #upper bound on expected number of photons from such a source
         Ci = np.where(C < epsilon)
         C = np.where(C < epsilon, C, 0)
-        p = C*np.exp(-C)
-        num_single_p_sources_at_radii = np.round(np.sum(RL_integral*p, axis = 1)).astype(int)
+        p = C*np.exp(-C) #probability that exactly 1 photon is recieved from such a source
+        num_single_p_sources_at_radii = np.random.poisson(np.sum(RL_integral*p, axis = 1))
         single_p_radii = np.repeat(r[:-1], num_single_p_sources_at_radii)
         
         # draw remaining sources from distribution
