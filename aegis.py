@@ -17,15 +17,19 @@ The class is used to generate simulations of photon maps.
 
 class aegis():
 
-    def __init__(self, abundance_luminosity_and_spectrum_list, source_class_list, parameter_range, energy_range, luminosity_range, max_radius, exposure, angular_cut = np.pi, lat_cut = 0, flux_cut = np.inf, cosmology = None, verbose = False):
+    def __init__(self, abundance_luminosity_and_spectrum_list, source_class_list, parameter_range, energy_range, luminosity_range, max_radius, exposure, angular_cut = np.pi, lat_cut = 0, flux_cut = np.inf, cosmology = None, z_range = [], verbose = False):
         #super().__init__(parameter_range)
 
-        self.cosmology = cosmology
-        if self.cosmology:
-            if self.cosmology not in cosmo.realizations.available and type(self.cosmology) != cosmo.FlatLambdaCDM:
+        self.cosmology = None
+        if cosmology:
+            if cosmology not in cosmo.realizations.available and type(cosmology) != cosmo.FlatLambdaCDM:
                 raise Exception('No valid cosmology given. Try one of these preloaded cosmologies: ' + ', '.join(cosmo.realizations.available) + '. Alternatively, give a custom cosmology of the astropy.cosmology.FlatLambdaCDM class.')
-            if self.cosmology in cosmo.realizations.available:
-                self.cosmology = getattr(cosmo, self.cosmology)
+            if cosmology in cosmo.realizations.available:
+                self.cosmology = getattr(cosmo, cosmology)
+
+        self.Zmin, self.Zmax = 0, 0
+        if z_range:
+            self.Zmin, self.Zmax = z_range[0], z_range[1]
         
         self.GC_to_earth = 8.5 #kpc
         
@@ -228,11 +232,15 @@ class aegis():
             if self.source_class_list[si] == 'isotropic_diffuse' or self.source_class_list[si] == 'healpix_map':
                 continue
 
-            elif self.source_class_list[si] == 'isotropic_faint_multi_spectra' or self.source_class_list[si] == 'isotropic_faint_single_spectrum':
+            elif self.source_class_list[si] == 'isotropic_faint_multi_spectra' or self.source_class_list[si] == 'isotropic_faint_single_spectrum' or self.source_class_list[si] == 'extragalactic_isotropic_faint_multi_spectra' or self.source_class_list[si] == 'extragalactic_isotropic_faint_single_spectrum':
 
                 # Draw radii and luminosities from RL abundance
-                RL = self.abun_lum_spec[si][0]
-                radii, luminosities, single_p_radii = self.draw_luminosities_and_radii(input_params, RL, grains=grains, epsilon=epsilon)
+                if self.source_class_list[si].startswith('extragalactic'):
+                    ZL = self.abun_lum_spec[si][0]
+                    radii, luminosities, single_p_radii = self.draw_luminosities_and_luminosity_distances(input_params, ZL, grains=grains, epsilon=epsilon)
+                else:
+                    RL = self.abun_lum_spec[si][0]
+                    radii, luminosities, single_p_radii = self.draw_luminosities_and_radii(input_params, RL, grains=grains, epsilon=epsilon)
                 num_sources = np.size(luminosities)
                 num_single_p_sources = np.size(single_p_radii)
 
@@ -391,7 +399,7 @@ class aegis():
         # Loop over all point sources
         self.N_source_classes = len(self.abun_lum_spec)
         for si in range(self.N_source_classes):
-            if self.source_class_list[si] == 'isotropic_faint_multi_spectra' or self.source_class_list[si] == 'independent_spherical_multi_spectra' or self.source_class_list[si] == 'independent_cylindrical_multi_spectra':
+            if self.source_class_list[si] == 'isotropic_faint_multi_spectra' or self.source_class_list[si] == 'independent_spherical_multi_spectra' or self.source_class_list[si] == 'independent_cylindrical_multi_spectra' or self.source_class_list[si] == 'extragalactic_isotropic_faint_multi_spectra':
                 if np.count_nonzero(photon_counts) == 0:
                     energies = np.array([])
                     continue
@@ -401,7 +409,7 @@ class aegis():
                 # Assign energies to all of those photons
                 #get spectra for each physical source
                 energy_vals = np.geomspace(self.Emin_gen, self.Emax_gen, grains)
-                if self.source_class_list[si] == 'isotropic_faint_multi_spectra':
+                if self.source_class_list[si] == 'isotropic_faint_multi_spectra' or self.source_class_list[si] == 'extragalactic_isotropic_faint_multi_spectra':
                     spectra = self.abun_lum_spec[si][1](energy_vals, num_spectra = np.count_nonzero(source_photon_counts), params = input_params)
                 else:
                     spectra = self.abun_lum_spec[si][2](energy_vals, num_spectra = np.count_nonzero(source_photon_counts), params = input_params)
@@ -417,7 +425,7 @@ class aegis():
                 rands = np.random.rand(np.sum(source_photon_counts))
                 energies[np.where(photon_types == si)] = energy_vals[self.searchsorted2d(CDFs, rands)]
 
-            if self.source_class_list[si] == 'isotropic_faint_single_spectrum' or self.source_class_list[si] == 'independent_spherical_single_spectrum' or self.source_class_list[si] == 'independent_cylindrical_single_spectrum':
+            if self.source_class_list[si] == 'isotropic_faint_single_spectrum' or self.source_class_list[si] == 'independent_spherical_single_spectrum' or self.source_class_list[si] == 'independent_cylindrical_single_spectrum' or self.source_class_list[si] == 'extragalactic_isotropic_faint_single_spectrum':
                 if np.count_nonzero(photon_counts) == 0:
                     energies = np.array([])
                     continue
@@ -426,7 +434,7 @@ class aegis():
                     continue
                 # Assign energies to all of those photons
                 energy_vals = np.geomspace(self.Emin_gen, self.Emax_gen, grains)
-                if self.source_class_list[si] == 'isotropic_faint_single_spectrum':
+                if self.source_class_list[si] == 'isotropic_faint_single_spectrum' or self.source_class_list[si] == 'extragalactic_isotropic_faint_single_spectrum':
                     spectrum = self.abun_lum_spec[si][1](energy_vals, params = input_params)
                 else:
                     spectrum = self.abun_lum_spec[si][2](energy_vals, params = input_params)
@@ -508,14 +516,49 @@ class aegis():
         
         return photon_info
 
+    #for extragalactic isotropic adundances where luminosity may depend on radius
+    #epsilon is the propability of recieveing a single photon below which single-photon sources are generated
+    def draw_luminosities_and_luminosity_distances(self, input_params, ZL, grains = 1000, epsilon = 0):
+        if not self.cosmology:
+            raise Exception('No cosmology defined')
+        if not self.Zmax:
+            raise Exception('Z range not defined')
+        if self.Zmin == 0:
+            z = np.geomspace(0.0001, self.Zmax, grains) #z of 0.0001 corresponds roughly to the distance to Andromeda
+        else:
+            z = np.geomspace(self.Zmin, self.Zmax, grains)
+        lums = np.geomspace(self.Lmin, self.Lmax, grains)
+        ZL_PDF = ZL(np.tile(z[:-1],(grains-1,1)).T, np.tile(lums[:-1],(grains-1,1)), input_params)
+        cd = self.cosmology.comoving_distance(z).value * units.Mpc.to('kpc')
+        ld = (1 + z) * cd
+        dVdL = np.tile(4/3*np.pi * (cd[1:]**3-cd[:-1]**3), (grains-1,1)).T * np.tile((lums[1:]-lums[:-1]), (grains-1,1))
+        ZL_integral = ZL_PDF *dVdL
+
+        # binomially draw low luminosity sources to save computation time
+        Dconserv = np.abs(self.GC_to_earth - np.tile(ld[:-1],(grains-1,1)).T) #the closest possible distance from earth to a source generated at raduis ld
+        #Dconserv = np.where(Dconserv == 0, 0.00000000001, Dconserv) #not needed as long as cd[0] > self.GC_to_earth
+        C = (np.tile(lums[:-1],(grains-1,1)))*self.exposure/(4*np.pi*Dconserv**2) #upper bound on expected number of photons from such a source
+        Ci = np.where(C < epsilon)
+        C = np.where(C < epsilon, C, 0)
+        p = C*np.exp(-C) #probability that exactly 1 photon is recieved from such a source
+        num_single_p_sources_at_radii = np.random.poisson(np.sum(ZL_integral*p, axis = 1))
+        single_p_radii = np.repeat(ld[:-1], num_single_p_sources_at_radii)
+
+        # draw remaining sources from distribution
+        ZL_integral[Ci] = 0
+        N_draws = np.round(np.sum(ZL_integral)).astype(int)
+        ld_indices, lum_indices = self.draw_from_2D_pdf(ZL_integral, N_draws)
+        
+        return ld[ld_indices], lums[lum_indices], single_p_radii
+
     #for isotropic adundances where luminosity may depend on radius
     #epsilon is the propability of recieveing a single photon below which single-photon sources are generated
     def draw_luminosities_and_radii(self, input_params, RL, grains = 1000, epsilon = 0):
         r = np.exp(np.linspace(np.log(0.001), np.log(self.Rmax), grains))
         lums = np.exp(np.linspace(np.log(self.Lmin), np.log(self.Lmax), grains))
         RL_PDF = RL(np.tile(r[:-1],(grains-1,1)).T, np.tile(lums[:-1],(grains-1,1)), input_params)
-        dRdL = np.tile(4*np.pi * r[:-1]**2 * (r[1:]-r[:-1]), (grains-1,1)).T * np.tile((lums[1:]-lums[:-1]), (grains-1,1))
-        RL_integral = RL_PDF * dRdL
+        dVdL = np.tile(4/3*np.pi * (r[1:]**3-r[:-1]**3), (grains-1,1)).T * np.tile((lums[1:]-lums[:-1]), (grains-1,1))
+        RL_integral = RL_PDF * dVdL
         
         # binomially draw low luminosity sources to save computation time
         Dconserv = np.abs(self.GC_to_earth - np.tile(r[:-1],(grains-1,1)).T) #the closest possible distance from earth to a source generated at raduis r
