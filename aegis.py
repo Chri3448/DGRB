@@ -17,19 +17,8 @@ The class is used to generate simulations of photon maps.
 
 class aegis():
 
-    def __init__(self, abundance_luminosity_and_spectrum_list, source_class_list, parameter_range, energy_range, luminosity_range, max_radius, exposure, angular_cut = np.pi, lat_cut = 0, flux_cut = np.inf, cosmology = None, z_range = [], verbose = False):
+    def __init__(self, abundance_luminosity_and_spectrum_list, source_class_list, parameter_range, energy_range, luminosity_range, max_radius, exposure, angular_cut = np.pi, lat_cut = 0, flux_cut = np.inf, energy_range_gen = [], angular_cut_gen = 0, lat_cut_gen = 0, cosmology = None, z_range = [], verbose = False):
         #super().__init__(parameter_range)
-
-        self.cosmology = None
-        if cosmology:
-            if cosmology not in cosmo.realizations.available and type(cosmology) != cosmo.FlatLambdaCDM:
-                raise Exception('No valid cosmology given. Try one of these preloaded cosmologies: ' + ', '.join(cosmo.realizations.available) + '. Alternatively, give a custom cosmology of the astropy.cosmology.FlatLambdaCDM class.')
-            if cosmology in cosmo.realizations.available:
-                self.cosmology = getattr(cosmo, cosmology)
-
-        self.Zmin, self.Zmax = 0, 0
-        if z_range:
-            self.Zmin, self.Zmax = z_range[0], z_range[1]
         
         self.GC_to_earth = 8.5 #kpc
         
@@ -51,20 +40,44 @@ class aegis():
         self.Rmax = max_radius
         
         #energy range within which photons are generated and survive the final masking cut, respectively
-        self.Emin_gen = energy_range[0]*0.5
-        self.Emax_gen = energy_range[1]*1.5
+        if energy_range_gen:
+            self.Emin_gen = energy_range_gen[0]
+            self.Emax_gen = energy_range_gen[1]
+        else:
+            self.Emin_gen = energy_range[0]
+            self.Emax_gen = energy_range[1]
         self.Emin_mask = energy_range[0]
         self.Emax_mask = energy_range[1]
+
+        #cosmology
+        self.cosmology = None
+        if cosmology:
+            if cosmology not in cosmo.realizations.available and type(cosmology) != cosmo.FlatLambdaCDM:
+                raise Exception('No valid cosmology given. Try one of these preloaded cosmologies: ' + ', '.join(cosmo.realizations.available) + '. Alternatively, give a custom cosmology of the astropy.cosmology.FlatLambdaCDM class.')
+            if cosmology in cosmo.realizations.available:
+                self.cosmology = getattr(cosmo, cosmology)
+
+        self.Zmin, self.Zmax = 0, 0
+        if z_range:
+            self.Zmin, self.Zmax = z_range[0], z_range[1]
+            if self.Emax_gen/(1+self.Zmax) < self.Emax_mask:
+                print('!!!WARNING!!! Some high energy photons that could be redshifted into the final energy range may not be generated. It is recommended to increase the maximum generating energy')
         
         #exposure of detector (converted from cm^2yr to kpc^2s)
         self.exposure = exposure*(units.cm.to('kpc')**2)*units.yr.to('s')
         
         #anglular radii out to which photons are generated and survive the final masking cut, respectively, from Earth's perspective
-        self.angular_cut_gen = angular_cut*1.5
+        if angular_cut_gen:
+            self.angular_cut_gen = angular_cut_gen
+        else:
+            self.angular_cut_gen = angular_cut
         self.angular_cut_mask = angular_cut
         
         #angular distances from galactic equator beyond which photons are generated and survive the final masking cut, respectively,, from Earth's perspective
-        self.lat_cut_gen = lat_cut*0.5
+        if lat_cut_gen:
+            self.lat_cut_gen = lat_cut_gen
+        else:
+            self.lat_cut_gen = lat_cut
         self.lat_cut_mask = lat_cut
             
         #flux above which point sources are not generated, from Earth's perspective
@@ -221,6 +234,8 @@ class aegis():
         source_info = {'luminosities': np.array([]),
                        'distances': np.array([]),
                        'single_p_distances': np.array([]),
+                       'redshifts': np.array([]),
+                       'single_p_redshifts': np.array([]),
                        'angles': np.zeros((0, 2)),
                        'single_p_angles': np.zeros((0, 2)),
                        'types': np.array([]),
@@ -237,12 +252,16 @@ class aegis():
                 # Draw radii and luminosities from RL abundance
                 if self.source_class_list[si].startswith('extragalactic'):
                     ZL = self.abun_lum_spec[si][0]
-                    radii, luminosities, single_p_radii = self.draw_luminosities_and_luminosity_distances(input_params, ZL, grains=grains, epsilon=epsilon)
+                    radii, luminosities, single_p_radii, redshifts, single_p_redshifts = self.draw_luminosities_and_comoving_distances(input_params, ZL, grains=grains, epsilon=epsilon)
                 else:
                     RL = self.abun_lum_spec[si][0]
                     radii, luminosities, single_p_radii = self.draw_luminosities_and_radii(input_params, RL, grains=grains, epsilon=epsilon)
+                    # Redshifts are not supported by this source class
+                    redshifts = np.zeros(np.size(luminosities))
+                    single_p_redshifts = np.zeros(np.size(single_p_radii))
                 num_sources = np.size(luminosities)
                 num_single_p_sources = np.size(single_p_radii)
+                
 
                 # Draw angles for every source [theta, phi]
                 angles = np.ones([num_sources, 2])
@@ -273,6 +292,10 @@ class aegis():
                 num_single_p_sources = 0
                 single_p_angles = np.zeros([num_single_p_sources, 2])
                 single_p_radii = np.zeros(num_single_p_sources)
+
+                # Redshifts are not supported by this source class
+                redshifts = np.zeros(num_sources)
+                single_p_redshifts = np.zeros(num_single_p_sources)
                 
             elif self.source_class_list[si] == 'independent_cylindrical_multi_spectra' or self.source_class_list[si] == 'independent_cylindrical_single_spectrum':
                 
@@ -296,6 +319,10 @@ class aegis():
                 num_single_p_sources = 0
                 single_p_angles = np.zeros([num_single_p_sources, 2])
                 single_p_radii = np.zeros(num_single_p_sources)
+
+                # Redshifts are not supported by this source class
+                redshifts = np.zeros(num_sources)
+                single_p_redshifts = np.zeros(num_single_p_sources)
                 
             elif self.source_class_list[si] == 'dependent_multi_spectra' or self.source_class_list[si] == 'dependent_single_spectrum':
                 print('not implemented')
@@ -331,6 +358,7 @@ class aegis():
             single_p_radii = np.delete(single_p_radii, bad_source_indices)
             single_p_earth_angles = np.delete(single_p_earth_angles, bad_source_indices, axis = 0)
             single_p_distances = np.delete(single_p_distances, bad_source_indices)
+            single_p_redshifts = np.delete(single_p_redshifts, bad_source_indices)
             num_single_p_sources = np.size(single_p_radii)
             
             # Remove sources outside of the angular cut, inside of the latitude cut, and above the flux cut
@@ -338,7 +366,7 @@ class aegis():
                                             np.abs(np.pi/2 - earth_angles[:,0]) >= self.lat_cut_gen))[0]
             single_p_keep_i = np.where(np.logical_and(hp.rotator.angdist(np.array([np.pi/2, 0]), single_p_earth_angles.T) <= self.angular_cut_gen, 
                                             np.abs(np.pi/2 - single_p_earth_angles[:,0]) >= self.lat_cut_gen))[0]
-            keep_i = keep_i[np.where(luminosities[keep_i]/(4*np.pi*(distances[keep_i]*units.kpc.to('cm'))**2) <= self.flux_cut)]
+            keep_i = keep_i[np.where(luminosities[keep_i]/(4*np.pi*(1+redshifts[keep_i])*(distances[keep_i]*units.kpc.to('cm'))**2) <= self.flux_cut)]
             num_sources = np.size(keep_i)
             num_single_p_sources = np.size(single_p_keep_i)
             luminosities = luminosities[keep_i]
@@ -346,6 +374,8 @@ class aegis():
             single_p_distances = single_p_distances[single_p_keep_i]
             earth_angles = earth_angles[keep_i,:]
             single_p_earth_angles = single_p_earth_angles[single_p_keep_i,:]
+            redshifts = redshifts[keep_i]
+            single_p_redshifts = single_p_redshifts[single_p_keep_i]
             
             # Catalog the type of source
             types = si*np.ones(num_sources)
@@ -354,6 +384,8 @@ class aegis():
             source_info = {'luminosities':np.concatenate((source_info['luminosities'], luminosities)),
                            'distances':np.concatenate((source_info['distances'], distances)),
                            'single_p_distances':np.concatenate((source_info['single_p_distances'], single_p_distances)),
+                           'redshifts':np.concatenate((source_info['redshifts'], redshifts)),
+                           'single_p_redshifts':np.concatenate((source_info['single_p_redshifts'], single_p_redshifts)),
                            'angles':np.concatenate((source_info['angles'], earth_angles)),
                            'single_p_angles':np.concatenate((source_info['single_p_angles'], single_p_earth_angles)),
                            'types': np.concatenate((source_info['types'], types)),
@@ -375,10 +407,12 @@ class aegis():
         '''
         # Calculate mean expected flux from each source
         mean_photon_counts = self.exposure*source_info['luminosities']/(4.*np.pi*source_info['distances']**2.)
+        if self.cosmology:
+            mean_photon_counts /= (1+source_info['redshifts'])
 
         # Poisson draw from mean photon counts to get realization of photon counts
         photon_counts = np.random.poisson(mean_photon_counts).astype('int')
-
+        
         # Add single photon sources to the photon counts
         photon_counts = np.concatenate((photon_counts, np.ones(source_info['single_p_distances'].size).astype('int')))
 
@@ -389,6 +423,11 @@ class aegis():
         
         # Array of photon energies
         energies = np.zeros(angles[:,0].size)
+
+        # Array for combined single and multi photon source redshifts
+        if self.cosmology:
+            source_redshifts = np.concatenate((source_info['redshifts'], source_info['single_p_redshifts']))
+            photon_redshifts = np.repeat(source_redshifts, photon_counts)
 
         # Array for combined single and multi photon source types
         source_types = np.concatenate((source_info['types'], source_info['single_p_types']))
@@ -463,52 +502,9 @@ class aegis():
                 angles = np.concatenate((angles, As))
                 energies = np.concatenate((energies, Es))
 
-        '''
-        photon_angles = np.concatenate((angles, source_info['single_p_angles']))
-        '''
-        '''
-        single_p_energies = np.array([])
-        '''
-        '''
-        for si in range(self.N_source_classes):
-            type_indices_bool = np.where(source_info['types'] == si, True, False)
-            num_single_p_sources = np.size(np.where(source_info['single_p_types'] == si, True, False))
-            energy_array = np.linspace(self.Emin_gen, self.Emax_gen, grains)
-            dndE = self.abun_lum_spec[si][1](input_params, energy_array)
-            if type(dndE) == type(torch.tensor([])):
-                dndE = dndE.numpy()
-            energy_indices = self.draw_from_pdf(np.arange(0,len(energy_array)),
-                                                dndE/np.sum(dndE),
-                                                np.sum(photon_counts, where = type_indices_bool))
-            single_p_energy_indices = self.draw_from_pdf(np.arange(0,len(energy_array)),
-                                                dndE/np.sum(dndE),
-                                                num_single_p_sources)
-            energies = np.concatenate((energies, energy_array[energy_indices]))
-            single_p_energies = np.concatenate((single_p_energies, energy_array[single_p_energy_indices]))
-        energies = np.concatenate((energies, single_p_energies))
-        for si in range(self.N_source_classes):
-            if not self.is_background_list[si]:
-                continue
-            if self.is_isotropic_list[si]:
-                num_E = int(round(self.Emax_gen - self.Emin_gen))
-                energy_array = np.linspace(self.Emin_gen, self.Emax_gen, num_E + 1)
-                dndE = self.abun_lum_spec[si][0](input_params, energy_array)
-                if type(dndE) == type(torch.tensor([])):
-                    dndE = dndE.numpy()
-                solid_angle = 2*np.pi*2*(1-np.cos(np.radians(90. - self.lat_cut_gen)))
-                N_iso_photons = np.random.poisson(np.round(np.sum(dndE*self.exposure*(units.kpc.to('cm')**2)*solid_angle)).astype('int'))
-                As = np.ones([N_iso_photons, 2])
-                As[:,0] = np.arccos(1 - np.random.rand(N_iso_photons))
-                As[:,0] += (np.pi - 2*As[:,0])*np.random.randint(2, size = N_iso_photons)
-                As[:,1] = np.random.uniform(low = 0., high = 2*np.pi, size = N_iso_photons)
-                if type(dndE) == type(torch.tensor([])):
-                    dndE = dndE.numpy()
-                energy_indices = self.draw_from_pdf(np.arange(0,len(energy_array)),
-                                                    dndE/np.sum(dndE), N_iso_photons)
-                photon_angles = np.concatenate((photon_angles, As))
-                energies = np.concatenate((energies, energy_array[energy_indices]))
-        '''
-        
+        if self.cosmology:
+            energies /= (1+photon_redshifts)
+
         photon_info = {'angles':angles, 'energies':energies}
 
         if (self.verbose):
@@ -518,7 +514,7 @@ class aegis():
 
     #for extragalactic isotropic adundances where luminosity may depend on radius
     #epsilon is the propability of recieveing a single photon below which single-photon sources are generated
-    def draw_luminosities_and_luminosity_distances(self, input_params, ZL, grains = 1000, epsilon = 0):
+    def draw_luminosities_and_comoving_distances(self, input_params, ZL, grains = 1000, epsilon = 0):
         if not self.cosmology:
             raise Exception('No cosmology defined')
         if not self.Zmax:
@@ -530,26 +526,26 @@ class aegis():
         lums = np.geomspace(self.Lmin, self.Lmax, grains)
         ZL_PDF = ZL(np.tile(z[:-1],(grains-1,1)).T, np.tile(lums[:-1],(grains-1,1)), input_params)
         cd = self.cosmology.comoving_distance(z).value * units.Mpc.to('kpc')
-        ld = (1 + z) * cd
         dVdL = np.tile(4/3*np.pi * (cd[1:]**3-cd[:-1]**3), (grains-1,1)).T * np.tile((lums[1:]-lums[:-1]), (grains-1,1))
         ZL_integral = ZL_PDF *dVdL
 
         # binomially draw low luminosity sources to save computation time
-        Dconserv = np.abs(self.GC_to_earth - np.tile(ld[:-1],(grains-1,1)).T) #the closest possible distance from earth to a source generated at raduis ld
+        Dconserv = np.abs(self.GC_to_earth - np.tile(cd[:-1],(grains-1,1)).T) #the closest possible distance from earth to a source generated at raduis cd
         #Dconserv = np.where(Dconserv == 0, 0.00000000001, Dconserv) #not needed as long as cd[0] > self.GC_to_earth
-        C = (np.tile(lums[:-1],(grains-1,1)))*self.exposure/(4*np.pi*Dconserv**2) #upper bound on expected number of photons from such a source
+        C = (np.tile(lums[:-1],(grains-1,1)))*self.exposure/(4*np.pi*np.tile((1+z[:-1]),(grains-1,1)).T*Dconserv**2) #upper bound on expected number of photons from such a source
         Ci = np.where(C < epsilon)
         C = np.where(C < epsilon, C, 0)
         p = C*np.exp(-C) #probability that exactly 1 photon is recieved from such a source
         num_single_p_sources_at_radii = np.random.poisson(np.sum(ZL_integral*p, axis = 1))
-        single_p_radii = np.repeat(ld[:-1], num_single_p_sources_at_radii)
+        single_p_radii = np.repeat(cd[:-1], num_single_p_sources_at_radii)
+        single_p_redshifts = np.repeat(z[:-1], num_single_p_sources_at_radii)
 
         # draw remaining sources from distribution
         ZL_integral[Ci] = 0
         N_draws = np.round(np.sum(ZL_integral)).astype(int)
-        ld_indices, lum_indices = self.draw_from_2D_pdf(ZL_integral, N_draws)
+        z_indices, lum_indices = self.draw_from_2D_pdf(ZL_integral, N_draws)
         
-        return ld[ld_indices], lums[lum_indices], single_p_radii
+        return cd[z_indices], lums[lum_indices], single_p_radii, z[z_indices], single_p_redshifts
 
     #for isotropic adundances where luminosity may depend on radius
     #epsilon is the propability of recieveing a single photon below which single-photon sources are generated
