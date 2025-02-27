@@ -514,16 +514,14 @@ class aegis():
 
     #for extragalactic isotropic adundances where luminosity may depend on radius
     #epsilon is the propability of recieveing a single photon below which single-photon sources are generated
-    def draw_luminosities_and_comoving_distances(self, input_params, ZL, grains = 1000, epsilon = 0):
+    def draw_luminosities_and_comoving_distances(self, input_params, ZL, Z_array_func = np.geomspace, L_array_func = np.geomspace, grains = 1000, epsilon = 0):
         if not self.cosmology:
             raise Exception('No cosmology defined')
         if not self.Zmax:
             raise Exception('Z range not defined')
-        if self.Zmin == 0:
-            z = np.geomspace(0.0001, self.Zmax, grains) #z of 0.0001 corresponds roughly to the distance to Andromeda
-        else:
-            z = np.geomspace(self.Zmin, self.Zmax, grains)
-        lums = np.geomspace(self.Lmin, self.Lmax, grains)
+        #z = Z_array_func(0.0001, self.Zmax, grains) #z of 0.0001 corresponds roughly to the distance to Andromeda
+        z = Z_array_func(self.Zmin + 1, self.Zmax + 1, grains) - 1
+        lums = L_array_func(self.Lmin + 1, self.Lmax + 1, grains) - 1
         ZL_PDF = ZL(np.tile(z[:-1],(grains-1,1)).T, np.tile(lums[:-1],(grains-1,1)), input_params)
         cd = self.cosmology.comoving_distance(z).value * units.Mpc.to('kpc')
         dVdL = np.tile(4/3*np.pi * (cd[1:]**3-cd[:-1]**3), (grains-1,1)).T * np.tile((lums[1:]-lums[:-1]), (grains-1,1))
@@ -549,9 +547,9 @@ class aegis():
 
     #for isotropic adundances where luminosity may depend on radius
     #epsilon is the propability of recieveing a single photon below which single-photon sources are generated
-    def draw_luminosities_and_radii(self, input_params, RL, grains = 1000, epsilon = 0):
-        r = np.exp(np.linspace(np.log(0.001), np.log(self.Rmax), grains))
-        lums = np.exp(np.linspace(np.log(self.Lmin), np.log(self.Lmax), grains))
+    def draw_luminosities_and_radii(self, input_params, RL, R_array_func = np.geomspace, L_array_func = np.geomspace, grains = 1000, epsilon = 0):
+        r = R_array_func(0 + 1, self.Rmax + 1, grains) - 1
+        lums = L_array_func(self.Lmin + 1, self.Lmax + 1, grains) - 1
         RL_PDF = RL(np.tile(r[:-1],(grains-1,1)).T, np.tile(lums[:-1],(grains-1,1)), input_params)
         dVdL = np.tile(4/3*np.pi * (r[1:]**3-r[:-1]**3), (grains-1,1)).T * np.tile((lums[1:]-lums[:-1]), (grains-1,1))
         RL_integral = RL_PDF * dVdL
