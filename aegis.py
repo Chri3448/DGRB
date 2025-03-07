@@ -540,7 +540,7 @@ class aegis():
 
         # draw remaining sources from distribution
         ZL_integral[Ci] = 0
-        N_draws = np.round(np.sum(ZL_integral)).astype(int)
+        N_draws = np.random.poisson(np.round(np.sum(ZL_integral)).astype(int))
         z_indices, lum_indices = self.draw_from_2D_pdf(ZL_integral, N_draws)
         
         return cd[z_indices], lums[lum_indices], single_p_radii, z[z_indices], single_p_redshifts
@@ -566,7 +566,7 @@ class aegis():
         
         # draw remaining sources from distribution
         RL_integral[Ci] = 0
-        N_draws = np.round(np.sum(RL_integral)).astype(int)
+        N_draws = np.random.poisson(np.round(np.sum(RL_integral)).astype(int))
         r_indices, lum_indices = self.draw_from_2D_pdf(RL_integral, N_draws)
         
         return r[r_indices], lums[lum_indices], single_p_radii
@@ -579,7 +579,7 @@ class aegis():
         r_integral = R(r[:-1], input_params) * r[:-1]**2 * (r[1:]-r[:-1])
         theta_integral = Theta(theta[:-1], input_params) * np.sin((theta[:-1])) * (theta[1:]-theta[:-1])
         phi_integral = Phi(phi[:-1], input_params) * (phi[1:]-phi[:-1])
-        N_draws = np.round(np.sum(r_integral)*np.sum(theta_integral)*np.sum(phi_integral)).astype('int')
+        N_draws = np.random.poisson(np.round(np.sum(r_integral)*np.sum(theta_integral)*np.sum(phi_integral)).astype('int'))
         r_i = self.draw_from_pdf(r, r_integral/np.sum(r_integral), N_draws)
         theta_i = self.draw_from_pdf(theta, theta_integral/np.sum(theta_integral), N_draws)
         phi_i = self.draw_from_pdf(phi, phi_integral/np.sum(phi_integral), N_draws)
@@ -595,7 +595,7 @@ class aegis():
         r_integral = R(r[:-1], input_params) * r[:-1] * (r[1:]-r[:-1])
         z_integral = Z(z[:-1], input_params) * (z[1:]-z[:-1])
         phi_integral = Phi(phi[:-1], input_params) * (phi[1:]-phi[:-1])
-        N_draws = np.round(np.sum(r_integral)*np.sum(z_integral)*np.sum(phi_integral)).astype('int')
+        N_draws = np.random.poisson(np.round(np.sum(r_integral)*np.sum(z_integral)*np.sum(phi_integral)).astype('int'))
         r_i = self.draw_from_pdf(r, r_integral/np.sum(r_integral), N_draws)
         z_i = self.draw_from_pdf(z, z_integral/np.sum(z_integral), N_draws)
         phi_i = self.draw_from_pdf(phi, phi_integral/np.sum(phi_integral), N_draws)
