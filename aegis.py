@@ -860,11 +860,12 @@ class aegis():
         
         return partial_map
     
-    def get_roi_map_summary(self, photon_info, N_side, N_Ebins, Ebinspace = 'linear'):
+    def get_roi_map_summary(self, photon_info, N_side, N_Ebins, Ebinspace = 'linear', roi_pix_i = np.array([])):
         #returns a 2d array of (pix X energy) for a limited region of sky within an angular cut
         N_pix = 12*N_side**2
         pix_bins = np.linspace(0, N_pix, N_pix + 1, dtype = 'int')
-        roi_pix_i = self.get_roi_pix_indices(N_side)
+        if roi_pix_i.size == 0:
+            roi_pix_i = self.get_roi_pix_indices(N_side)
         if Ebinspace == 'linear':
             Ebins = np.linspace(self.Emin_mask, self.Emax_mask, N_Ebins + 1)
         elif Ebinspace == 'log':
