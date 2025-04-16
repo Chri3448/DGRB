@@ -349,7 +349,7 @@ class aegis():
 
             single_p_earth_angles = np.ones([num_single_p_sources, 2])
             single_p_earth_angles[:,0] = np.arccos(single_p_z/single_p_distances)
-            single_p_earth_angles[:,1] = np.arccos(single_p_x/single_p_distances/np.sin(single_p_earth_angles[:,0]))
+            single_p_earth_angles[:,1] = np.arccos(np.clip(single_p_x/single_p_distances/np.sin(single_p_earth_angles[:,0]), -1, 1))
             single_p_earth_angles[:,1] = np.where(single_p_y > 0, single_p_earth_angles[:,1], 2*np.pi - single_p_earth_angles[:,1])
 
             # Account for overdrawing single-photon sources
