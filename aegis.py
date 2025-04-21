@@ -481,6 +481,9 @@ class aegis():
                 Ei = self.draw_from_pdf(energy_vals[:-1], spectrum[:-1]*(energy_vals[1:] - energy_vals[:-1])/norm, np.sum(source_photon_counts))
                 Es = energy_vals[Ei]
                 energies[np.where(photon_types == si)] = Es
+
+        if self.cosmology:
+            energies /= (1+photon_redshifts)
                 
         # Loop over all isotropic diffuse and healpix map sources, appending angles and energies to the existing lists
         for si in range(self.N_source_classes):
@@ -489,7 +492,8 @@ class aegis():
                 spectrum = self.abun_lum_spec[si][0](energy_vals, input_params)
                 solid_angle = 2*np.pi*(1-np.cos(self.angular_cut_gen))
                 exposure_correction = units.kpc.to('cm')**2
-                num_photons = np.rint(solid_angle*np.sum(spectrum[1:]*(energy_vals[1:] - energy_vals[:-1]))*self.exposure*exposure_correction).astype('int')
+                mean_photons = np.rint(solid_angle*np.sum(spectrum[1:]*(energy_vals[1:] - energy_vals[:-1]))*self.exposure*exposure_correction).astype('int')
+                num_photons = np.random.poisson(mean_photons)
                 Es = energy_vals[self.draw_from_pdf(energy_vals, spectrum/np.sum(spectrum), num_photons)]
                 As = self.draw_random_angles(num_photons)
                 keep_i = np.where(np.abs(np.pi/2 - As[:,0]) >= self.lat_cut_gen)[0]
@@ -501,9 +505,6 @@ class aegis():
                 As, Es = self.draw_angles_and_energies_from_partial_map(map_vals, map_E, map_i, N_side)
                 angles = np.concatenate((angles, As))
                 energies = np.concatenate((energies, Es))
-
-        if self.cosmology:
-            energies /= (1+photon_redshifts)
 
         photon_info = {'angles':angles, 'energies':energies}
 
