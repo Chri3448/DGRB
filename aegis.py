@@ -880,6 +880,44 @@ class aegis():
             countbins = np.linspace(mincount, maxcount, N_countbins + 1)
         elif countbinspace == 'log':
             countbins = np.geomspace(mincount + 0.1, maxcount + 0.1, N_countbins + 1) - 0.1
+        elif countbinspace == 'custom':
+            def create_log_int_array(maxcount, num_points):
+                if num_points < 3:
+                    raise ValueError("num_points must be at least 3")
+                
+                # Generate many logarithmically spaced samples between 1 and maxcount.
+                extra_samples = (num_points - 3) * 10  # Adjust multiplier if necessary.
+                log_samples = np.logspace(0, np.log10(maxcount), num=extra_samples, endpoint=True)
+                
+                # Convert to integers.
+                int_samples = np.floor(log_samples).astype(int)
+                
+                # Remove duplicates.
+                unique_ints = np.unique(int_samples)
+                
+                # Ensure that 1 and maxcount are in the unique set.
+                if 1 not in unique_ints:
+                    unique_ints = np.sort(np.append(unique_ints, 1))
+                if maxcount not in unique_ints:
+                    unique_ints = np.sort(np.append(unique_ints, maxcount))
+                
+                # Extract values strictly between 1 and maxcount for the intermediate portion.
+                mask = (unique_ints > 1) & (unique_ints < maxcount)
+                intermediate_pool = unique_ints[mask]
+                
+                # We need exactly (num_points - 3) intermediate values.
+                if len(intermediate_pool) < num_points - 3:
+                    raise ValueError("Not enough unique intermediate values were generated; try increasing extra_samples.")
+                
+                # Select (num_points - 3) values evenly from the intermediate pool.
+                indices = np.linspace(0, len(intermediate_pool) - 1, num_points - 3, dtype=int)
+                intermediate = intermediate_pool[indices]
+                
+                # Build the final array.
+                final = np.concatenate(([0, 1], intermediate, [maxcount]))
+                return final
+
+            countbins = create_log_int_array(maxcount, N_countbins + 1)
         hist = np.zeros((N_countbins, roi_map.shape[1]))
         for Ei in np.arange(roi_map.shape[1]):
             hist[:,Ei] = np.histogram(roi_map[:,Ei], bins = countbins)[0]
