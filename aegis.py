@@ -344,7 +344,7 @@ class aegis():
             # Get the angular positions as seen from Earth
             earth_angles = np.ones([num_sources, 2])
             earth_angles[:,0] = np.arccos(z/distances)
-            earth_angles[:,1] = np.arccos(x/distances/np.sin(earth_angles[:,0]))
+            earth_angles[:,1] = np.arccos(np.clip(x/distances/np.sin(earth_angles[:,0]), -1, 1))
             earth_angles[:,1] = np.where(y > 0, earth_angles[:,1], 2*np.pi - earth_angles[:,1])
 
             single_p_earth_angles = np.ones([num_single_p_sources, 2])
