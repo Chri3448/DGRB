@@ -871,6 +871,8 @@ class aegis():
             Ebins = np.linspace(self.Emin_mask, self.Emax_mask, N_Ebins + 1)
         elif Ebinspace == 'log':
             Ebins = np.geomspace(self.Emin_mask + 0.1, self.Emax_mask + 0.1, N_Ebins + 1) - 0.1
+        elif Ebinspace == 'single':
+            Ebins = np.array([self.Emin_mask, self.Emax_mask])
         partial_map = np.histogram2d(hp.ang2pix(N_side, photon_info['angles'][:,0], photon_info['angles'][:,1]), photon_info['energies'], bins = [pix_bins, Ebins])
         
         return partial_map[0][roi_pix_i, :]
