@@ -362,10 +362,32 @@ class aegis():
             num_single_p_sources = np.size(single_p_radii)
             
             # Remove sources outside of the angular cut, inside of the latitude cut, and above the flux cut
-            keep_i = np.where(np.logical_and(hp.rotator.angdist(np.array([np.pi/2, 0]), earth_angles.T) <= self.angular_cut_gen, 
+            num = earth_angles.shape[0]
+            if num == 0:
+                keep_i = np.empty(0, dtype=int)   # nothing survives
+            else:
+                if num == 1:
+                    coords = earth_angles[0]# shape (2,)    when N = 1
+                else: # num > 1
+                    coords = earth_angles.T # shape (2, N)  when N > 1
+
+                keep_i = np.where(np.logical_and(hp.rotator.angdist(np.array([np.pi/2, 0]), coords) <= self.angular_cut_gen, 
                                             np.abs(np.pi/2 - earth_angles[:,0]) >= self.lat_cut_gen))[0]
-            single_p_keep_i = np.where(np.logical_and(hp.rotator.angdist(np.array([np.pi/2, 0]), single_p_earth_angles.T) <= self.angular_cut_gen, 
+                
+            num_src = single_p_earth_angles.shape[0]
+            if num_src == 0:
+                single_p_keep_i = np.empty(0, dtype=int)   # nothing survives
+            else:
+                if num_src == 1:
+                    coords_for_angdist = single_p_earth_angles[0]# shape (2,)    when N = 1
+                else: # num_src > 1
+                    coords_for_angdist = single_p_earth_angles.T # shape (2, N)  when N > 1
+                
+
+                single_p_keep_i = np.where(np.logical_and(hp.rotator.angdist(np.array([np.pi/2, 0]), coords_for_angdist) <= self.angular_cut_gen, 
                                             np.abs(np.pi/2 - single_p_earth_angles[:,0]) >= self.lat_cut_gen))[0]
+                
+
             keep_i = keep_i[np.where(luminosities[keep_i]/(4*np.pi*(1+redshifts[keep_i])*(distances[keep_i]*units.kpc.to('cm'))**2) <= self.flux_cut)]
             num_sources = np.size(keep_i)
             num_single_p_sources = np.size(single_p_keep_i)
@@ -496,6 +518,9 @@ class aegis():
                 num_photons = np.random.poisson(mean_photons)
                 Es = energy_vals[self.draw_from_pdf(energy_vals, spectrum/np.sum(spectrum), num_photons)]
                 As = self.draw_random_angles(num_photons)
+
+                As = np.atleast_2d(As)          # guarantees shape (N,2), with N = 0,1,…
+
                 keep_i = np.where(np.abs(np.pi/2 - As[:,0]) >= self.lat_cut_gen)[0]
                 energies = np.concatenate((energies, Es[keep_i]))
                 angles = np.concatenate((angles, As[keep_i]))
@@ -1191,7 +1216,19 @@ class aegis():
         Removes photons outside of self.angular_cut_mask, inside self.lat_cut_mask, and outside (self.Emin_mask, self.Emax_mask)
         Arbitrary mask from obs_info NOT YET IMPLEMENTED
         '''
-        keep_i = np.where(np.logical_and(hp.rotator.angdist(np.array([np.pi/2, 0]), photon_info['angles'].T) <= self.angular_cut_mask, np.abs(np.pi/2 - photon_info['angles'][:,0]) >= self.lat_cut_mask))[0]
+
+        num_photons = photon_info['energies'].size
+
+        if num_photons == 0:
+            keep_i = np.empty(0, dtype=int)
+        else:
+            if num_photons == 1:
+                coords  = photon_info['angles'][0]# shape (2,)    when N = 1
+            else: # num_photons > 1
+                coords  = photon_info['angles'].T # shape (2, N)  when N > 1
+
+            keep_i = np.where(np.logical_and(hp.rotator.angdist(np.array([np.pi/2, 0]), coords) <= self.angular_cut_mask, np.abs(np.pi/2 - photon_info['angles'][:,0]) >= self.lat_cut_mask))[0]
+
         keep_i = keep_i[np.where(np.logical_and(photon_info['energies'][keep_i] >= self.Emin_mask, photon_info['energies'][keep_i] <= self.Emax_mask))]
         
         obs_photon_info = copy.deepcopy(photon_info)
