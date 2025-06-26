@@ -516,7 +516,10 @@ class aegis():
                 exposure_correction = units.kpc.to('cm')**2
                 mean_photons = np.rint(solid_angle*np.sum(spectrum[1:]*(energy_vals[1:] - energy_vals[:-1]))*self.exposure*exposure_correction).astype('int')
                 num_photons = np.random.poisson(mean_photons)
-                Es = energy_vals[self.draw_from_pdf(energy_vals, spectrum/np.sum(spectrum), num_photons)]
+                if num_photons == 0:
+                    Es = np.array([])
+                else:
+                    Es = energy_vals[self.draw_from_pdf(energy_vals, spectrum/np.sum(spectrum), num_photons)]
                 As = self.draw_random_angles(num_photons)
 
                 As = np.atleast_2d(As)          # guarantees shape (N,2), with N = 0,1,…
@@ -567,7 +570,10 @@ class aegis():
         # draw remaining sources from distribution
         ZL_integral[Ci] = 0
         N_draws = np.random.poisson(np.round(np.sum(ZL_integral)).astype(int))
-        z_indices, lum_indices = self.draw_from_2D_pdf(ZL_integral, N_draws)
+        if np.all(ZL_integral == 0): # all elements of ZL_integral are zero
+            z_indices, lum_indices = np.array([], dtype=int), np.array([], dtype=int)
+        else:
+            z_indices, lum_indices = self.draw_from_2D_pdf(ZL_integral, N_draws)
         
         return cd[z_indices], lums[lum_indices], single_p_radii, z[z_indices], single_p_redshifts
 
