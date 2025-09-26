@@ -43,7 +43,7 @@ class FermiBackgrounds:
     
     def get_nonistropic_background(self, N_side = 64):
         bg_file = self.path + '/data/FermiData/gll_iem_v07.fits'
-        bg_data = fits.open(self.path + bg_file)
+        bg_data = fits.open(bg_file)
         w = wcs.WCS(bg_data[0].header)
         dims = bg_data[0].shape
         N_energy = dims[0]
