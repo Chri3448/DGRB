@@ -514,12 +514,17 @@ class aegis():
                 spectrum = self.abun_lum_spec[si][0](energy_vals, input_params)
                 solid_angle = 2*np.pi*(1-np.cos(self.angular_cut_gen))
                 exposure_correction = units.kpc.to('cm')**2
-                mean_photons = np.rint(solid_angle*np.sum(spectrum[1:]*(energy_vals[1:] - energy_vals[:-1]))*self.exposure*exposure_correction).astype('int')
+
+                spectrum_geometric_mean = np.sqrt(spectrum[1:]*spectrum[:-1])
+                mean_photons = np.rint(solid_angle*np.sum(spectrum_geometric_mean*(energy_vals[1:] - energy_vals[:-1]))*self.exposure*exposure_correction).astype('int')
+                
                 num_photons = np.random.poisson(mean_photons)
                 if num_photons == 0:
                     Es = np.array([])
                 else:
-                    Es = energy_vals[self.draw_from_pdf(energy_vals, spectrum/np.sum(spectrum), num_photons)]
+                    Es = energy_vals[self.draw_from_pdf(
+                        energy_vals, spectrum_geometric_mean*(energy_vals[1:] - energy_vals[:-1])/np.sum(spectrum_geometric_mean*(energy_vals[1:] - energy_vals[:-1])), num_photons
+                        )]
                 As = self.draw_random_angles(num_photons)
 
                 As = np.atleast_2d(As)          # guarantees shape (N,2), with N = 0,1,…
