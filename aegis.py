@@ -88,12 +88,12 @@ class aegis():
 
         self.verbose = verbose
         if (self.verbose):
-            print("Analysis Type: " + self.analysis_type)
-            print("N_parameters = ", self.N_parameters)
-            print("map = ", self.is_map_list)
+            # print("Analysis Type: " + self.analysis_type)
+            # print("N_parameters = ", self.N_parameters)
+            # print("map = ", self.is_map_list)
             print("source_classes = ", self.source_class_list)
-            print("parameter min = ", self.param_min)
-            print("parameter max = ", self.param_max)
+            # print("parameter min = ", self.param_min)
+            # print("parameter max = ", self.param_max)
             print("Emin_gen = ", self.Emin_gen)
             print("Emax_gen = ", self.Emax_gen)
             print("Emin_mask = ", self.Emin_mask)
@@ -418,8 +418,8 @@ class aegis():
             for si in range(self.N_source_classes):
                 num_mps = np.size(np.where(source_info['types'] == si))
                 num_sps = np.size(np.where(source_info['single_p_types'] == si))
-                print(f'Multi-photon sources of type {si}: {sum_mps}')
-                print(f'Single-photon sources of type {si}: {sum_sps}')
+                print(f'Multi-photon sources of type {si}: {num_mps}')
+                print(f'Single-photon sources of type {si}: {num_sps}')
         
         return source_info
 
@@ -516,7 +516,7 @@ class aegis():
                 exposure_correction = units.kpc.to('cm')**2
 
                 spectrum_geometric_mean = np.sqrt(spectrum[1:]*spectrum[:-1])
-                mean_photons = np.rint(solid_angle*np.sum(spectrum_geometric_mean*(energy_vals[1:] - energy_vals[:-1]))*self.exposure*exposure_correction).astype('int')
+                mean_photons = solid_angle*np.sum(spectrum_geometric_mean*(energy_vals[1:] - energy_vals[:-1]))*self.exposure*exposure_correction
                 
                 num_photons = np.random.poisson(mean_photons)
                 if num_photons == 0:

@@ -33,7 +33,7 @@ class FermiBackgrounds:
         return interpolate.interp1d(ee, dnde)
 
     def get_mean_isotropic_flux(self, Emin, Emax):
-        # Do integral over energy to get total flux in cm-2 s-2 sr-1
+        # Do integral over energy to get total flux in cm-2 s-1 sr-1
         dnde_func = self.get_isotropic_background_spectrum_func()
         e = np.geomspace(Emin, Emax, 200)
         de = e[1:] - e[:-1]
